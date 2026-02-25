@@ -36,6 +36,8 @@ export { KuiklyNativeManager } from './src/main/ets/native/KuiklyNativeManager';
 export * from './src/main/ets/modules/export';
 
 export { KRNativeRender as Kuikly } from './src/main/ets/KRNativeRender';
+export { KRAutoSizeNativeRender as KuiklyAutoSize } from './src/main/ets/KRAutoSizeNativeRender';
+export { KRAutoSizeNativeRender } from './src/main/ets/KRAutoSizeNativeRender';
 
 export { IKuiklyViewDelegate, KRNativeRenderController, IKuiklyRenderViewLifecycleCallback, KRMonitorType } from './src/main/ets/KRNativeRenderController';
 

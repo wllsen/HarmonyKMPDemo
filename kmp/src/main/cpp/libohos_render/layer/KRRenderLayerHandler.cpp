@@ -14,6 +14,9 @@
  */
 
 #include "libohos_render/layer/KRRenderLayerHandler.h"
+#include <algorithm>
+#include <cmath>
+#include "libohos_render/manager/KRArkTSManager.h"
 
 /**
  * 初始化
@@ -63,8 +66,12 @@ void KRRenderLayerHandler::CreateRenderView(int tag, const std::string &view_nam
  * @param tag 视图 ID
  */
 void KRRenderLayerHandler::RemoveRenderView(int tag) {
+    const bool is_root_content = root_content_tags_.erase(tag) > 0;
     auto it = view_registry_.find(tag);
     if (it == view_registry_.end()) {
+        if (is_root_content) {
+            RecalculateRootContentSizeAndNotify();
+        }
         return;
     }
     auto view = it->second;
@@ -83,6 +90,9 @@ void KRRenderLayerHandler::RemoveRenderView(int tag) {
             KRContextScheduler::ScheduleTaskOnMainThread(false, [view]() { view->ToDestroy(); });
         });
     }
+    if (is_root_content) {
+        RecalculateRootContentSizeAndNotify();
+    }
 }
 
 /**
@@ -98,6 +108,8 @@ void KRRenderLayerHandler::InsertSubRenderView(int parent_tag, int child_tag, in
         if (auto lock = root_view_.lock()) {
             lock->AddContentView(child_view, index);
         }
+        root_content_tags_.insert(child_tag);
+        RecalculateRootContentSizeAndNotify();
     } else {
         auto &parent_view = view_registry_[parent_tag];
         if (parent_view != nullptr && child_view != nullptr) {
@@ -116,6 +128,9 @@ void KRRenderLayerHandler::SetProp(int tag, const std::string &prop_key, const K
     auto &view = view_registry_[tag];
     if (view != nullptr) {
         view->ToSetProp(prop_key, prop_value, nullptr);
+        if (prop_key == "frame" && root_content_tags_.find(tag) != root_content_tags_.end()) {
+            RecalculateRootContentSizeAndNotify();
+        }
     }
 }
 
@@ -300,6 +315,9 @@ void KRRenderLayerHandler::WillDestroy() {}
  */
 void KRRenderLayerHandler::OnDestroy() {
     destroying_ = true;
+    root_content_tags_.clear();
+    root_content_width_ = -1.0f;
+    root_content_height_ = -1.0f;
     for (const auto &entry : view_registry_) {
         const std::shared_ptr<IKRRenderViewExport> &value = entry.second;
         if (value) {
@@ -351,6 +369,52 @@ void KRRenderLayerHandler::PushViewToReuseQueue(std::shared_ptr<IKRRenderViewExp
     auto &queue = view_reuse_queue_[view_name];
     view->ToReuse();
     queue.push_back(view);
+}
+
+void KRRenderLayerHandler::RecalculateRootContentSizeAndNotify() {
+    float max_width = 0.0f;
+    float max_height = 0.0f;
+    // 遍历根容器直属子节点，计算内容包围盒右下角
+    for (const auto tag : root_content_tags_) {
+        auto it = view_registry_.find(tag);
+        if (it == view_registry_.end() || it->second == nullptr) {
+            continue;
+        }
+        const auto frame = it->second->GetFrame();
+        const float right = std::max(0.0f, frame.x + frame.width);
+        const float bottom = std::max(0.0f, frame.y + frame.height);
+        max_width = std::max(max_width, right);
+        max_height = std::max(max_height, bottom);
+    }
+    NotifyRootContentSizeChangedIfNeed(max_width, max_height);
+}
+
+void KRRenderLayerHandler::NotifyRootContentSizeChangedIfNeed(float width, float height) {
+    if (!context_) {
+        return;
+    }
+    // 尺寸变化很小则忽略，避免频繁跨桥调用
+    if (std::fabs(root_content_width_ - width) < 0.1f && std::fabs(root_content_height_ - height) < 0.1f) {
+        return;
+    }
+    root_content_width_ = width;
+    root_content_height_ = height;
+
+    KRRenderValue::Map data;
+    data["width"] = KRRenderValue::Make(width);
+    data["height"] = KRRenderValue::Make(height);
+    auto json_data = KRRenderValue::Make(data)->toString();
+    // 通过 ArkTS Module 通道回传内容尺寸，驱动 AutoSize 组件更新宽高
+    KRArkTSManager::GetInstance().CallArkTSMethod(
+        context_->InstanceId(),
+        KRNativeCallArkTSMethod::CallModuleMethod,
+        KRRenderValue::Make("KRAutoSizeModule"),
+        KRRenderValue::Make("notifyContentSizeChanged"),
+        KRRenderValue::Make(json_data),
+        KRRenderValue::Make(nullptr),
+        KRRenderValue::Make(nullptr),
+        nullptr
+    );
 }
 
 std::shared_ptr<IKRRenderModuleExport> KRRenderLayerHandler::GetModuleOrCreate(const std::string &module_name) {

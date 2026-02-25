@@ -166,6 +166,8 @@ export class KRNativeRenderController {
   private updateSafeInsetsHandler: number = 0;
   private windowClass: window.Window | null = null;
   private destroyed: boolean = false;
+  /** AutoSize 容器监听的内容尺寸变化回调 */
+  private autoContentSizeChangedCallback: ((width: number, height: number) => void) | null = null;
   private onWindowSizeChanged: Callback<window.Size> = (params: window.Size) => {
     if (this.imeMode) {
       return;
@@ -496,6 +498,17 @@ export class KRNativeRenderController {
       return false;
     }
     return false;
+  }
+
+  setAutoContentSizeChangedCallback(callback: ((width: number, height: number) => void) | null) {
+    this.autoContentSizeChangedCallback = callback;
+  }
+
+  /**
+   * 由 native 侧通过 Module 回调触发，通知内容真实尺寸变化
+   */
+  onAutoContentSizeChanged(width: number, height: number) {
+    this.autoContentSizeChangedCallback?.(width, height);
   }
 
   putParam(key: string, value: KRValue) {

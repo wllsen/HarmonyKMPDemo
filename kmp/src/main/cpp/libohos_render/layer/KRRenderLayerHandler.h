@@ -16,6 +16,7 @@
 #ifndef CORE_RENDER_OHOS_KRRENDERLAYERHANDLER_H
 #define CORE_RENDER_OHOS_KRRENDERLAYERHANDLER_H
 
+#include <unordered_set>
 #include <shared_mutex>
 #include "libohos_render/context/KRRenderContextParams.h"
 #include "libohos_render/layer/IKRRenderLayer.h"
@@ -190,11 +191,20 @@ class KRRenderLayerHandler : public IKRRenderLayer {
     std::unordered_map<int, std::shared_ptr<IKRRenderShadowExport>> shadow_registry_;
     mutable std::shared_mutex module_rw_mutex_;  // 用于module读写安全用的读写锁
     bool destroying_ = false;
+    // 根容器直接子节点 tag 集合，用于计算内容包围盒
+    std::unordered_set<int> root_content_tags_;
+    // 上次已通知给 ArkTS 的内容尺寸（用于去抖）
+    float root_content_width_ = -1.0f;
+    float root_content_height_ = -1.0f;
 
     /** 从复用队列中弹出一个view */
     std::shared_ptr<IKRRenderViewExport> PopViewFromReuseQueue(const std::string &view_name);
     /** 把view放进复用队列里复用 */
     void PushViewToReuseQueue(std::shared_ptr<IKRRenderViewExport> view);
+    /** 重新计算根内容尺寸并通知 ArkTS */
+    void RecalculateRootContentSizeAndNotify();
+    /** 尺寸变化超过阈值时才触发通知 */
+    void NotifyRootContentSizeChangedIfNeed(float width, float height);
 };
 
 #endif  // CORE_RENDER_OHOS_KRRENDERLAYERHANDLER_H
