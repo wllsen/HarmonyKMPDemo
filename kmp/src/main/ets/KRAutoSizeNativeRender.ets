@@ -28,42 +28,66 @@ export struct KRAutoSizeNativeRender {
   /** 自动尺寸下限，避免初始 0 尺寸导致不可见 */
   minWidth: number = 1;
   minHeight: number = 1;
+  /** fit 模式下的外部宽高约束，支持 number 或百分比字符串（如 '50%'） */
+  fitWidth: number | string = 0;
+  fitHeight: number | string = 0;
   /** 尺寸更新阈值，避免高频抖动触发重绘 */
   contentSizeEpsilon: number = 0.1;
 
   /** 当前内容宽高（由 native 内容尺寸回传驱动） */
   @State private contentWidth: number = 1;
   @State private contentHeight: number = 1;
+  /** 当 fit 使用百分比时，由外层容器回填的实际宽高上限 */
+  @State private resolvedFitWidth: number = 0;
+  @State private resolvedFitHeight: number = 0;
   private controller: KRNativeRenderController | null = null;
 
-  aboutToAppear(): void {
-    this.contentWidth = Math.max(1, this.minWidth);
-    this.contentHeight = Math.max(1, this.minHeight);
+  private isPercentFit(value: number | string): boolean {
+    return typeof value === 'string' && value.trim().endsWith('%');
   }
 
-  aboutToDisappear(): void {
-    this.controller?.setAutoContentSizeChangedCallback(null);
-    this.controller = null;
+  private getFitWidthLimit(): number {
+    if (typeof this.fitWidth === 'number') {
+      return this.fitWidth;
+    }
+    return this.isPercentFit(this.fitWidth) ? this.resolvedFitWidth : 0;
   }
 
-  private onInnerControllerReady(controller: KRNativeRenderController): void {
-    this.controller = controller;
-    // 监听 native 回传的内容尺寸，并同步到组件宽高
-    controller.setAutoContentSizeChangedCallback((width: number, height: number) => {
-      const targetWidth = Math.max(this.minWidth, width);
-      const targetHeight = Math.max(this.minHeight, height);
-      if (Math.abs(targetWidth - this.contentWidth) >= this.contentSizeEpsilon) {
-        this.contentWidth = targetWidth;
-      }
-      if (Math.abs(targetHeight - this.contentHeight) >= this.contentSizeEpsilon) {
-        this.contentHeight = targetHeight;
-      }
-    });
-    this.onControllerReadyCallback?.(controller);
+  private getFitHeightLimit(): number {
+    if (typeof this.fitHeight === 'number') {
+      return this.fitHeight;
+    }
+    return this.isPercentFit(this.fitHeight) ? this.resolvedFitHeight : 0;
   }
 
-  build() {
-    // 复用 KRNativeRender 核心能力，仅把外层尺寸策略改为“内容自适应”
+  private clampToFitSize(targetSize: number, fitLimit: number): number {
+    if (fitLimit > 0) {
+      return Math.min(targetSize, fitLimit);
+    }
+    return targetSize;
+  }
+
+  private computeTargetWidth(contentWidth: number): number {
+    const base = Math.max(this.minWidth, contentWidth);
+    return this.clampToFitSize(base, this.getFitWidthLimit());
+  }
+
+  private computeTargetHeight(contentHeight: number): number {
+    const base = Math.max(this.minHeight, contentHeight);
+    return this.clampToFitSize(base, this.getFitHeightLimit());
+  }
+
+  private onWrapperSizeChanged(newValue: SizeOptions): void {
+    if (this.isPercentFit(this.fitWidth) && typeof newValue.width === 'number') {
+      this.resolvedFitWidth = newValue.width;
+    }
+    if (this.isPercentFit(this.fitHeight) && typeof newValue.height === 'number') {
+      this.resolvedFitHeight = newValue.height;
+    }
+  }
+
+  @Builder
+  private renderInner(): void {
     KRNativeRender({
       pageName: this.pageName,
       pageData: this.pageData,
@@ -80,8 +104,60 @@ export struct KRAutoSizeNativeRender {
       onControllerReadyCallback: (controller: KRNativeRenderController) => this.onInnerControllerReady(controller),
       imeMode: this.imeMode
     })
-      // 外层尺寸由内容尺寸驱动，实现“宽高都自动”
+      // 外层尺寸由内容尺寸驱动，实现“宽高都自动 / fit 约束”
       .width(this.contentWidth)
       .height(this.contentHeight);
+  }
+
+  aboutToAppear(): void {
+    this.contentWidth = this.computeTargetWidth(1);
+    this.contentHeight = this.computeTargetHeight(1);
+  }
+
+  aboutToDisappear(): void {
+    this.controller?.setAutoContentSizeChangedCallback(null);
+    this.controller = null;
+  }
+
+  private onInnerControllerReady(controller: KRNativeRenderController): void {
+    this.controller = controller;
+    // 监听 native 回传的内容尺寸，并同步到组件宽高
+    controller.setAutoContentSizeChangedCallback((width: number, height: number) => {
+      const targetWidth = this.computeTargetWidth(width);
+      const targetHeight = this.computeTargetHeight(height);
+      if (Math.abs(targetWidth - this.contentWidth) >= this.contentSizeEpsilon) {
+        this.contentWidth = targetWidth;
+      }
+      if (Math.abs(targetHeight - this.contentHeight) >= this.contentSizeEpsilon) {
+        this.contentHeight = targetHeight;
+      }
+    });
+    this.onControllerReadyCallback?.(controller);
+  }
+
+  build() {
+    // 如果 fit 传了百分比，先由外层容器承接百分比约束，再把实际尺寸回填为 fit 上限
+    if (this.isPercentFit(this.fitWidth) && this.isPercentFit(this.fitHeight)) {
+      Stack() {
+        this.renderInner();
+      }
+      .width(this.fitWidth as string)
+      .height(this.fitHeight as string)
+      .onSizeChange((_: SizeOptions, newValue: SizeOptions) => this.onWrapperSizeChanged(newValue));
+    } else if (this.isPercentFit(this.fitWidth)) {
+      Stack() {
+        this.renderInner();
+      }
+      .width(this.fitWidth as string)
+      .onSizeChange((_: SizeOptions, newValue: SizeOptions) => this.onWrapperSizeChanged(newValue));
+    } else if (this.isPercentFit(this.fitHeight)) {
+      Stack() {
+        this.renderInner();
+      }
+      .height(this.fitHeight as string)
+      .onSizeChange((_: SizeOptions, newValue: SizeOptions) => this.onWrapperSizeChanged(newValue));
+    } else {
+      this.renderInner();
+    }
   }
 }
