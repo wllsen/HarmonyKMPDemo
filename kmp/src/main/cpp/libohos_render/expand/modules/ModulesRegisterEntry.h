@@ -20,6 +20,7 @@
 #include "libohos_render/expand/modules/cache/KRMemoryCacheModule.h"
 #include "libohos_render/expand/modules/calendar/KRCalendarModule.h"
 #include "libohos_render/expand/modules/codec/KRCodecModule.h"
+#include "libohos_render/expand/modules/content_size/KRContentSizeModule.h"
 #include "libohos_render/expand/modules/forward/KRForwardArkTSModule.h"
 #include "libohos_render/expand/modules/log/KRLogModule.h"
 #include "libohos_render/expand/modules/log/KRLogTestModule.h"
@@ -56,6 +57,10 @@ static void ModulesRegisterEntry() {
 
     IKRRenderModuleExport::RegisterModuleCreator(kuikly::module::KRPerformanceModule::MODULE_NAME, [] {
         return std::make_shared<kuikly::module::KRPerformanceModule>();
+    });
+
+    IKRRenderModuleExport::RegisterModuleCreator(kuikly::module::KRContentSizeModule::MODULE_NAME, [] {
+        return std::make_shared<kuikly::module::KRContentSizeModule>();
     });
     
     IKRRenderModuleExport::RegisterModuleCreator(kuikly::module::KRBackPressModule::MODULE_NAME, [] {

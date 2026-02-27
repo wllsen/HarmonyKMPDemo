@@ -22,6 +22,7 @@ import { KRExceptionModule } from './KRExceptionModule';
 import { KRNetworkModule } from './KRNetworkModule';
 import { KRRouterModule } from './KRRouterModule';
 import { KRPerformanceModule } from './KRPerformanceModuleArkTS';
+import { KRContentSizeModule } from './KRContentSizeModule';
 
 /**
  * ArkTS侧内置Module均在此注册生成实例闭包
@@ -52,7 +53,10 @@ export class ModulesRegisterEntry {
     });
     KRNativeManager.getInstance().registerModuleCreator(KRPerformanceModule.MODULE_NAME, (): IKuiklyRenderModuleExport => {
       return new KRPerformanceModule()
-    })
+    });
+    KRNativeManager.getInstance().registerModuleCreator(KRContentSizeModule.MODULE_NAME, (): IKuiklyRenderModuleExport => {
+      return new KRContentSizeModule();
+    });
   }
 
   static registerModuleCreator(moduleName: string, moduleCreator: () => IKuiklyRenderModuleExport) {

@@ -166,6 +166,9 @@ export class KRNativeRenderController {
   private updateSafeInsetsHandler: number = 0;
   private windowClass: window.Window | null = null;
   private destroyed: boolean = false;
+  private autoHeightEnabled: boolean = false;
+  private autoHeightMinDelta: number = 0.1;
+  private onAutoHeightChanged: ((height: number) => void) | null = null;
   private onWindowSizeChanged: Callback<window.Size> = (params: window.Size) => {
     if (this.imeMode) {
       return;
@@ -406,6 +409,30 @@ export class KRNativeRenderController {
     }
     this.viewRect.width = newValue.width as number;
     this.viewRect.height = newValue.height as number;
+  }
+
+  enableAutoHeight(onHeightChanged: ((height: number) => void) | null = null) {
+    this.autoHeightEnabled = true;
+    this.onAutoHeightChanged = onHeightChanged;
+  }
+
+  onContentSizeChanged(width: number, height: number) {
+    if (!this.autoHeightEnabled || this.viewRect == null) {
+      return;
+    }
+    if (width > 0) {
+      this.viewRect.width = width;
+    }
+    if (height <= 0) {
+      return;
+    }
+    const oldHeight = this.viewRect.height;
+    if (Math.abs(oldHeight - height) < this.autoHeightMinDelta) {
+      return;
+    }
+    this.viewRect.height = height;
+    this.onAutoHeightChanged?.(height);
+    this.notifySizeChange();
   }
 
   onAboutToDisappear() {

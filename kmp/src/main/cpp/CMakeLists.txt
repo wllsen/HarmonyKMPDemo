@@ -78,6 +78,7 @@ set(SOURCE_SET
         libohos_render/expand/modules/codec/sha256.c
         libohos_render/expand/modules/codec/KRCodec.cpp
         libohos_render/expand/modules/codec/KRCodecModule.cpp
+        libohos_render/expand/modules/content_size/KRContentSizeModule.cpp
         libohos_render/expand/modules/calendar/KRDate.cpp
         libohos_render/expand/modules/calendar/KRCalendarModule.cpp
         libohos_render/expand/modules/back_press/KRBackPressModule.cpp

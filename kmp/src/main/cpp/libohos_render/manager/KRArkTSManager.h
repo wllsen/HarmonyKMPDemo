@@ -35,6 +35,7 @@ enum class KRNativeCallArkTSMethod {
     RemoveView = 7,           // 删除View
     SetViewSize = 8,          // 设置View尺寸
     DidMoveToParentView = 9,  // 添加到父节点中
+    ContentSizeChanged = 10,  // 内容尺寸变化（用于自动高度）
 };
 
 /// ArkTS调用Native方法枚举

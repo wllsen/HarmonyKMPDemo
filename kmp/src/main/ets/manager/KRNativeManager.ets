@@ -48,6 +48,7 @@ export enum KRNativeCallArkTSMethod {
   RemoveView = 7, // 删除视图
   SetViewSize = 8, // 设置View尺寸
   DidMoveToParentView = 9, // 添加到父节点中
+  ContentSizeChanged = 10, // 内容尺寸变化（用于自动高度）
 };
 
 
@@ -193,6 +194,8 @@ export class KRNativeManager {
         } else if (methodId == KRNativeCallArkTSMethod.SetViewSize.valueOf()) { // 设置View size
           let tag = arg0 as number;
           nativeInstance.setViewSize(tag, arg1 as number, arg2 as number);
+        } else if (methodId == KRNativeCallArkTSMethod.ContentSizeChanged.valueOf()) { // 根容器内容尺寸变化
+          nativeInstance.getNativeRenderController()?.onContentSizeChanged(arg0 as number, arg1 as number);
         }
 
         return null;

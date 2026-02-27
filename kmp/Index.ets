@@ -14,6 +14,7 @@
  */
 
 export { KRNative } from './src/main/ets/KRNative';
+export { KRNativeAutoHeight } from './src/main/ets/KRNativeAutoHeight';
 
 export { KRNative as KTNative } from './src/main/ets/KRNative';
 
@@ -36,6 +37,7 @@ export { KuiklyNativeManager } from './src/main/ets/native/KuiklyNativeManager';
 export * from './src/main/ets/modules/export';
 
 export { KRNativeRender as Kuikly } from './src/main/ets/KRNativeRender';
+export { KRNativeRenderAutoHeight as KuiklyAutoHeight } from './src/main/ets/KRNativeRenderAutoHeight';
 
 export { IKuiklyViewDelegate, KRNativeRenderController, IKuiklyRenderViewLifecycleCallback, KRMonitorType } from './src/main/ets/KRNativeRenderController';
 
