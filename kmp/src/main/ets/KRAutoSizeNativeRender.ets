@@ -1,4 +1,6 @@
-import { KRNativeRender } from './KRNativeRender';
+import common from '@ohos.app.ability.common';
+import { NodeContent } from '@kit.ArkUI';
+import render from 'libkuikly.so';
 import { IKuiklyViewDelegate, KRNativeRenderController } from './KRNativeRenderController';
 import { KRNativeRenderControllerReadyCallback } from './manager/KRNativeInstance';
 import { KRRecord } from './utils/KRDataTypes';
@@ -6,6 +8,8 @@ import { KuiklyNativeManager } from './native/KuiklyNativeManager';
 import { ErrorReason } from './exception/KuiklyRenderExportExceptions';
 import { KRRenderExecuteModeBase } from './context/KRRenderExecuteModeBase';
 import { KRRenderNativeMode } from './context/KRRenderNativeMode';
+import { KRNativeManager } from './manager/KRNativeManager';
+import { KRRect } from './foundation/KRRect';
 
 @Component
 export struct KRAutoSizeNativeRender {
@@ -41,6 +45,15 @@ export struct KRAutoSizeNativeRender {
   @State private resolvedFitWidth: number = 0;
   @State private resolvedFitHeight: number = 0;
   private controller: KRNativeRenderController | null = null;
+  private nodeContent: Content = new NodeContent();
+  private loaded = false;
+
+  private loadNativeLibIfNeeded(): void {
+    if (!this.loaded && this.nativeManager != null) {
+      this.nativeManager.internalDoLoad();
+      this.loaded = true;
+    }
+  }
 
   private isPercentFit(value: number | string): boolean {
     return typeof value === 'string' && value.trim().endsWith('%');
@@ -86,43 +99,51 @@ export struct KRAutoSizeNativeRender {
     }
   }
 
-  @Builder
-  private renderInner(): void {
-    KRNativeRender({
-      pageName: this.pageName,
-      pageData: this.pageData,
-      executeMode: this.executeMode,
-      contextCode: this.contextCode,
-      assetsDir: this.assetsDir,
-      useOhSharedPreferences: this.useOhSharedPreferences,
-      nativeManager: this.nativeManager,
-      delegate: this.delegate,
-      pagerName: this.pagerName,
-      pagerData: this.pagerData,
-      pageParams: this.pageParams,
-      onRenderException: this.onRenderException,
-      onControllerReadyCallback: (controller: KRNativeRenderController) => this.onInnerControllerReady(controller),
-      imeMode: this.imeMode
-    })
-      // 外层尺寸由内容尺寸驱动，实现“宽高都自动 / fit 约束”
-      .width(this.contentWidth)
-      .height(this.contentHeight);
-  }
-
   aboutToAppear(): void {
     this.contentWidth = this.computeTargetWidth(1);
     this.contentHeight = this.computeTargetHeight(1);
-  }
 
-  aboutToDisappear(): void {
-    this.controller?.setAutoContentSizeChangedCallback(null);
-    this.controller = null;
-  }
+    this.delegate?.getCustomRenderViewCreatorRegisterMap().forEach((value, key) => {
+      KRNativeManager.getInstance().registerViewCreator(key, value);
+    });
+    this.delegate?.getCustomRenderViewCreatorRegisterMapV2().forEach((value, key) => {
+      KRNativeManager.getInstance().registerViewCreatorV2(key, value);
+    });
+    this.delegate?.getCustomRenderModuleCreatorRegisterMap().forEach((value, key) => {
+      KRNativeManager.getInstance().registerModuleCreator(key, value);
+    });
 
-  private onInnerControllerReady(controller: KRNativeRenderController): void {
-    this.controller = controller;
-    // 监听 native 回传的内容尺寸，并同步到组件宽高
-    controller.setAutoContentSizeChangedCallback((width: number, height: number) => {
+    this.controller = this.delegate ?? new KRNativeRenderController();
+    if (this.delegate != null) {
+      const callback = this.delegate.getKuiklyRenderViewLifecycleCallback();
+      if (callback != null) {
+        this.controller.addKuiklyRenderViewLifecycleCallback(callback);
+      }
+    }
+
+    // 关键：在 AutoSize 组件内部提供 bootstrap viewRect，避免依赖外部显式宽高
+    const bootstrapRect = new KRRect(0, 0, this.contentWidth, this.contentHeight);
+    this.controller.init(
+      this.getUIContext(),
+      getContext(this) as common.UIAbilityContext,
+      this.executeMode,
+      this.pagerName ?? this.pageName,
+      this.pagerData ?? this.pageParams ?? this.pageData,
+      this.contextCode,
+      this.imeMode,
+      this.assetsDir,
+      this.useOhSharedPreferences,
+      bootstrapRect
+    );
+
+    if (this.onRenderException) {
+      this.controller.registerExceptionCallback((executeMode, stack) => {
+        this.onRenderException?.(new Error(stack), ErrorReason.UNKNOWN);
+      });
+    }
+
+    // 监听 native 回传内容尺寸，驱动组件按内容撑开
+    this.controller.setAutoContentSizeChangedCallback((width: number, height: number) => {
       const targetWidth = this.computeTargetWidth(width);
       const targetHeight = this.computeTargetHeight(height);
       if (Math.abs(targetWidth - this.contentWidth) >= this.contentSizeEpsilon) {
@@ -132,32 +153,62 @@ export struct KRAutoSizeNativeRender {
         this.contentHeight = targetHeight;
       }
     });
-    this.onControllerReadyCallback?.(controller);
+
+    this.onControllerReadyCallback?.(this.controller);
+    render.createNativeRoot(this.nodeContent, this.controller.instanceId);
+    this.loadNativeLibIfNeeded();
+    this.controller.onViewSizeChanged(bootstrapRect);
+  }
+
+  aboutToDisappear(): void {
+    this.controller?.setAutoContentSizeChangedCallback(null);
+    this.controller?.onAboutToDisappear();
+    this.controller = null;
+  }
+
+  @Builder
+  private renderRoot(): void {
+    Stack({ alignContent: Alignment.TopStart }) {
+      ContentSlot(this.nodeContent);
+    }
+    .hitTestBehavior(HitTestMode.None)
+    .width(this.contentWidth)
+    .height(this.contentHeight)
+    .onAttach(() => {
+      this.loadNativeLibIfNeeded();
+      this.controller?.onAttach();
+    })
+    .onAreaChange((_: Area, newValue: Area) => {
+      this.controller?.onAreaChange(newValue);
+    })
+    .onSizeChange((_: SizeOptions, newValue: SizeOptions) => {
+      this.controller?.onSizeChange(newValue);
+    });
   }
 
   build() {
     // 如果 fit 传了百分比，先由外层容器承接百分比约束，再把实际尺寸回填为 fit 上限
     if (this.isPercentFit(this.fitWidth) && this.isPercentFit(this.fitHeight)) {
       Stack() {
-        this.renderInner();
+        this.renderRoot();
       }
       .width(this.fitWidth as string)
       .height(this.fitHeight as string)
       .onSizeChange((_: SizeOptions, newValue: SizeOptions) => this.onWrapperSizeChanged(newValue));
     } else if (this.isPercentFit(this.fitWidth)) {
       Stack() {
-        this.renderInner();
+        this.renderRoot();
       }
       .width(this.fitWidth as string)
       .onSizeChange((_: SizeOptions, newValue: SizeOptions) => this.onWrapperSizeChanged(newValue));
     } else if (this.isPercentFit(this.fitHeight)) {
       Stack() {
-        this.renderInner();
+        this.renderRoot();
       }
       .height(this.fitHeight as string)
       .onSizeChange((_: SizeOptions, newValue: SizeOptions) => this.onWrapperSizeChanged(newValue));
     } else {
-      this.renderInner();
+      this.renderRoot();
     }
   }
 }

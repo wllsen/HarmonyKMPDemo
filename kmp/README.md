@@ -31,3 +31,23 @@ Kuikly 是基于Kotlin Multiplatform的UI与逻辑全面跨端综合解决方案
 `ohpm install`
 
 更多接入信息请参考: [Kuikly鸿蒙接入](https://t.kuikly.tds.qq.com/%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B/harmony.html)
+## 自动尺寸渲染根节点
+如果你不希望在外部给 `KRNativeRender` 手动设置 `.width/.height`，可以使用 `KRAutoSizeNativeRender`（或入口封装 `KRNativeAutoSize` / `KuiklyAutoSize`）。
+
+示例：
+```ts
+import { KuiklyAutoSize } from '@kuikly-open/render';
+
+KuiklyAutoSize({
+  pageName: 'TestPage',
+  pageData: {},
+  executeMode: KRRenderNativeMode.Native,
+  // 注意：min 仅用于初始化兜底，后续会按 native 回传的内容尺寸自动扩展
+  // 可选：自动尺寸下限，防止初始0尺寸
+  minWidth: 1,
+  minHeight: 1,
+  // 可选：fit约束，支持 number 或百分比字符串
+  fitWidth: '100%',
+  fitHeight: '100%'
+})
+```

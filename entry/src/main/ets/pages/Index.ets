@@ -1,4 +1,4 @@
-import { KRRecord, KRRenderNativeMode, Kuikly } from '@kuikly-open/render';
+import { KRRecord, KRRenderNativeMode, KuiklyAutoSize } from '@kuikly-open/render';
 import { MyNativeManager } from '../kuikly/MyNativeManager';
 import { KuiklyViewDelegate } from '../kuikly/KuiklyViewDelegate';
 
@@ -13,15 +13,13 @@ struct Index {
 
   build() {
     Column() {
-      Kuikly({
+      KuiklyAutoSize({
         pageName: this.pageName,
         pageData: this.pageData,
         executeMode: KRRenderNativeMode.Native,
         delegate: this.kuiklyDelegate,
         nativeManager: this.nativeManager
       })
-      .width('100%')
-      .height('100%')
     }
     .width('100%')
     .height('100%')

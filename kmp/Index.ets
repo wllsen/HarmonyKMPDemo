@@ -17,6 +17,10 @@ export { KRNative } from './src/main/ets/KRNative';
 
 export { KRNative as KTNative } from './src/main/ets/KRNative';
 
+export { KRNativeAutoSize } from './src/main/ets/KRNativeAutoSize';
+
+export { KRNativeAutoSize as KTNativeAutoSize } from './src/main/ets/KRNativeAutoSize';
+
 export * from './src/main/ets/utils/KRDataTypes';
 
 // 兼容旧版本
@@ -38,6 +42,7 @@ export * from './src/main/ets/modules/export';
 export { KRNativeRender as Kuikly } from './src/main/ets/KRNativeRender';
 export { KRAutoSizeNativeRender as KuiklyAutoSize } from './src/main/ets/KRAutoSizeNativeRender';
 export { KRAutoSizeNativeRender } from './src/main/ets/KRAutoSizeNativeRender';
+export { KRNativeAutoSize as KuiklyNativeAutoSize } from './src/main/ets/KRNativeAutoSize';
 
 export { IKuiklyViewDelegate, KRNativeRenderController, IKuiklyRenderViewLifecycleCallback, KRMonitorType } from './src/main/ets/KRNativeRenderController';
 
