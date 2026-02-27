@@ -155,8 +155,9 @@ export struct KRAutoSizeNativeRender {
     });
 
     this.onControllerReadyCallback?.(this.controller);
-    render.createNativeRoot(this.nodeContent, this.controller.instanceId);
+    render.createNativeRoot(this.nodeContent, this.controller.instanceId);                                  
     this.loadNativeLibIfNeeded();
+    this.controller.onViewSizeChanged(bootstrapRect);
   }
 
   aboutToDisappear(): void {
